@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>People — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div><h2>People</h2><p>Full youth member database</p></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-ghost" onclick="exportCSV()">Export CSV</button>
+            <label class="btn btn-sm btn-ghost" style="cursor:pointer;">Import JSON<input type="file" accept=".json" id="importFile" style="display:none" onchange="importJson(event)"></label>
+            <button class="btn btn-primary btn-sm" onclick="openModal()">+ Add Person</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <input id="searchPeople" placeholder="Search name, phone, location, team…" oninput="renderTable()" style="flex:1;min-width:180px;">
+          <select id="filterType" onchange="renderTable()">
+            <option value="">All Types</option>
+            <option>Regular</option><option>Newcomer</option><option>Guest</option>
+          </select>
+          <select id="filterTeam" onchange="renderTable()"><option value="">All Teams</option></select>
+          <select id="filterLeader" onchange="renderTable()"><option value="">All Cell Leaders</option></select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Gender</th><th>Location</th><th>Team</th><th>Cell Leader</th><th>Type</th><th>Last Seen</th><th>Actions</th></tr></thead>
+            <tbody id="peopleTable"><tr><td colspan="9"><div class="empty">Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="memberModal">
+  <div class="modal-card">
+    <div class="modal-card-head">
+      <div><h2 id="modalTitle">Add Person</h2><p>Same data columns as your Excel sheet</p></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-card-body">
+      <div class="form-grid">
+        <div class="field"><label>Serial No.</label><input id="mSerial" placeholder="S001"></div>
+        <div class="field"><label>Full Name *</label><input id="mName" placeholder="Name Surname"></div>
+        <div class="field"><label>Date of Birth</label><input id="mDob" type="date"></div>
+        <div class="field"><label>Age</label><input id="mAge" type="number" placeholder="0"></div>
+        <div class="field"><label>Gender</label><select id="mGender"><option value="">—</option><option>Male</option><option>Female</option></select></div>
+        <div class="field"><label>Phone</label><input id="mPhone" type="tel" placeholder="+94…"></div>
+        <div class="field"><label>Location</label><input id="mLocation" placeholder="City / Town"></div>
+        <div class="field"><label>Divisional Secretariat</label><input id="mDS" placeholder="DS"></div>
+        <div class="field span2"><label>Address</label><input id="mAddress" placeholder="Full address"></div>
+        <div class="field"><label>Cell Leader</label><input id="mCellLeader" placeholder="Leader name"></div>
+        <div class="field"><label>Cell Group</label><input id="mCellGroup" placeholder="Group name"></div>
+        <div class="field"><label>Ministry / Team</label><input id="mTeam" placeholder="Worship / Media…"></div>
+        <div class="field"><label>Type</label><select id="mType"><option>Regular</option><option>Newcomer</option><option>Guest</option><option>Alumni</option></select></div>
+        <div class="field"><label>Status</label><select id="mStatus"><option>Active</option><option>Inactive</option></select></div>
+        <div class="field"><label>First Visit</label><input id="mFirstVisit" type="date"></div>
+        <div class="field"><label>Last Attended</label><input id="mLastAttended" type="date"></div>
+        <div class="field"><label>Follow-up Status</label><select id="mFollowStatus"><option>Not Needed</option><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+        <div class="field span2"><label>Notes</label><textarea id="mNotes" placeholder="Any notes…"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-card-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePerson()">Save Person</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { mountShell, requireAuth, onData, store, canManage, canAdmin, notify, clean, initials, avatarHTML, todayISO, roleKey, syncToSheet, $ } from './assets/js/core.js';
+import { db, addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp } from './assets/js/firebase.js';
+
+mountShell("people","People");
+let editingId = null;
+
+requireAuth(() => { onData(render); });
+
+function render({ youthMembers, cellLeaders }) {
+  // Update selectors
+  const teams = [...new Set(youthMembers.map(m => m.team||m.ministry).filter(Boolean))].sort();
+  const leaders = [...new Set(youthMembers.map(m => m.cellLeader).filter(Boolean))].sort();
+  const cur = { team: document.getElementById("filterTeam")?.value, leader: document.getElementById("filterLeader")?.value };
+  if ($("filterTeam")) {
+    $("filterTeam").innerHTML = `<option value="">All Teams</option>` + teams.map(t => `<option${cur.team===t?" selected":""}>${clean(t)}</option>`).join("");
+    $("filterTeam").value = cur.team;
+  }
+  if ($("filterLeader")) {
+    $("filterLeader").innerHTML = `<option value="">All Cell Leaders</option>` + leaders.map(l => `<option${cur.leader===l?" selected":""}>${clean(l)}</option>`).join("");
+    $("filterLeader").value = cur.leader;
+  }
+  renderTable();
+}
+
+window.renderTable = function() {
+  const q = ($("searchPeople")?.value||"").toLowerCase();
+  const type = $("filterType")?.value;
+  const team = $("filterTeam")?.value;
+  const leader = $("filterLeader")?.value;
+  const { youthMembers } = store;
+  const data = youthMembers.filter(m =>
+    (!q || [m.name,m.contactNumber,m.location,m.cellLeader,m.ministry,m.team].join(" ").toLowerCase().includes(q)) &&
+    (!type || m.memberType === type) &&
+    (!team || (m.team||m.ministry) === team) &&
+    (!leader || m.cellLeader === leader)
+  );
+  const tb = $("peopleTable");
+  if (!tb) return;
+  tb.innerHTML = data.length ? data.map(m => {
+    const phone = String(m.contactNumber||"").replace(/[^0-9+]/g,"");
+    return `<tr>
+      <td><div class="person"><div class="avatar">${avatarHTML(null,m.name)}</div><div><b>${clean(m.name)}</b></div></div></td>
+      <td>${clean(m.contactNumber||"—")}</td>
+      <td>${clean(m.gender||"—")}</td>
+      <td>${clean(m.location||"—")}</td>
+      <td>${clean(m.team||m.ministry||"—")}</td>
+      <td>${clean(m.cellLeader||"—")}</td>
+      <td><span class="pill status-${roleKey(m.memberType)}">${clean(m.memberType||"Regular")}</span></td>
+      <td>${clean(m.lastAttendedDate||"Never")}</td>
+      <td><div class="quick-actions">
+        <button class="btn btn-xs" onclick="openEdit('${m.id}')">Edit</button>
+        <button class="btn btn-xs btn-green" onclick="quickPresent('${m.id}')">✓ Present</button>
+        <button class="btn btn-xs btn-purple" onclick="createFollowUp('${m.id}')">Follow Up</button>
+        ${phone ? `<a class="btn btn-xs btn-ghost" href="tel:${phone}">Call</a>` : ""}
+        <button class="btn btn-xs btn-danger" onclick="deletePerson('${m.id}')">Delete</button>
+      </div></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="9"><div class="empty">No matching records.</div></td></tr>`;
+};
+
+window.openModal = function(type="Regular") {
+  editingId = null;
+  clearForm();
+  $("modalTitle").textContent = "Add Person";
+  $("mType").value = type;
+  $("mFirstVisit").value = todayISO();
+  $("memberModal").classList.add("active");
+};
+
+window.openEdit = function(id) {
+  if (!canManage()) return notify("Only Admin or Core Moderator can edit people.");
+  const m = store.youthMembers.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  $("modalTitle").textContent = "Edit Person";
+  $("mSerial").value = m.serialNo||""; $("mName").value = m.name||""; $("mDob").value = m.dob||"";
+  $("mAge").value = m.age||""; $("mGender").value = m.gender||""; $("mPhone").value = m.contactNumber||"";
+  $("mLocation").value = m.location||""; $("mDS").value = m.divisionalSecretariat||""; $("mAddress").value = m.address||"";
+  $("mCellLeader").value = m.cellLeader||""; $("mCellGroup").value = m.cellGroup||""; $("mTeam").value = m.team||m.ministry||"";
+  $("mType").value = m.memberType||"Regular"; $("mStatus").value = m.status||"Active";
+  $("mFirstVisit").value = m.firstVisitDate||""; $("mLastAttended").value = m.lastAttendedDate||"";
+  $("mFollowStatus").value = m.followUpStatus||"Not Needed"; $("mNotes").value = m.notes||"";
+  $("memberModal").classList.add("active");
+};
+
+window.closeModal = function() { $("memberModal").classList.remove("active"); };
+
+function clearForm() {
+  ["mSerial","mName","mDob","mAge","mPhone","mLocation","mDS","mAddress","mCellLeader","mCellGroup","mTeam","mFirstVisit","mLastAttended","mNotes"].forEach(id => { if ($(id)) $(id).value = ""; });
+  if ($("mGender")) $("mGender").value = "";
+  if ($("mType")) $("mType").value = "Regular";
+  if ($("mStatus")) $("mStatus").value = "Active";
+  if ($("mFollowStatus")) $("mFollowStatus").value = "Not Needed";
+}
+
+window.savePerson = async function() {
+  if (!canManage()) return notify("Only Admin or Core Moderator can save people.");
+  const name = $("mName").value.trim();
+  if (!name) return notify("Name is required.");
+  const data = {
+    serialNo: $("mSerial").value.trim(), name,
+    dob: $("mDob").value, age: $("mAge").value.trim(),
+    gender: $("mGender").value, contactNumber: $("mPhone").value.trim(),
+    location: $("mLocation").value.trim(), divisionalSecretariat: $("mDS").value.trim(),
+    address: $("mAddress").value.trim(), cellLeader: $("mCellLeader").value.trim(),
+    cellGroup: $("mCellGroup").value.trim(), ministry: $("mTeam").value.trim(), team: $("mTeam").value.trim(),
+    memberType: $("mType").value, status: $("mStatus").value,
+    firstVisitDate: $("mFirstVisit").value, lastAttendedDate: $("mLastAttended").value,
+    followUpStatus: $("mFollowStatus").value, notes: $("mNotes").value.trim(),
+    updatedAt: serverTimestamp()
+  };
+  if (editingId) {
+    await updateDoc(doc(db,"youthMembers",editingId), data);
+    await syncToSheet({ id: editingId, ...data }, "update");
+    notify("Person updated");
+  } else {
+    data.createdAt = serverTimestamp();
+    const ref = await addDoc(collection(db,"youthMembers"), data);
+    await syncToSheet({ id: ref.id, ...data }, "add");
+    notify("Person added");
+  }
+  closeModal();
+};
+
+window.deletePerson = async function(id) {
+  if (!canAdmin()) return notify("Only Admin can delete people.");
+  if (confirm("Delete this person?")) {
+    await deleteDoc(doc(db,"youthMembers",id));
+    notify("Deleted");
+  }
+};
+
+window.quickPresent = async function(id) {
+  const m = store.youthMembers.find(x => x.id === id);
+  if (!m) return;
+  const date = todayISO();
+  await addDoc(collection(db,"attendance"), { memberId:id, memberName:m.name, contactNumber:m.contactNumber||"", date, eventName:"Quick Present", status:"Present", cellLeader:m.cellLeader||"", team:m.team||"", createdAt:serverTimestamp() });
+  await updateDoc(doc(db,"youthMembers",id), { lastAttendedDate:date, updatedAt:serverTimestamp() });
+  notify("Marked present");
+};
+
+window.createFollowUp = async function(id) {
+  const m = store.youthMembers.find(x => x.id === id);
+  if (!m) return;
+  await addDoc(collection(db,"followUps"), { memberId:m.id, memberName:m.name, contactNumber:m.contactNumber||"", reason:"Needs follow-up", assignedTo:m.cellLeader||"Unassigned", status:"Pending", dueDate:"", notes:"", createdAt:serverTimestamp() });
+  await updateDoc(doc(db,"youthMembers",id), { followUpStatus:"Pending", updatedAt:serverTimestamp() });
+  notify("Follow-up created");
+};
+
+window.exportCSV = function() {
+  const rows = store.youthMembers;
+  if (!rows.length) return notify("No data to export");
+  const keys = [...new Set(rows.flatMap(o => Object.keys(o).filter(k => typeof o[k] !== "object")))];
+  const csv = [keys.join(","), ...rows.map(r => keys.map(k => `"${String(r[k]??"").replace(/"/g,'""')}"`).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download = "youth-people.csv"; a.click(); URL.revokeObjectURL(a.href);
+};
+
+window.importJson = async function(event) {
+  if (!canAdmin()) return notify("Only Admin can import data.");
+  const file = event.target.files[0]; if (!file) return;
+  const data = JSON.parse(await file.text()); let count = 0;
+  for (const [col, items] of Object.entries(data)) {
+    if (!Array.isArray(items)) continue;
+    for (const item of items) { await addDoc(collection(db,col), { ...item, createdAt:serverTimestamp(), updatedAt:serverTimestamp() }); count++; }
+  }
+  notify(`Imported ${count} records`);
+};
+
+
+</script>
+</body>
+</html>

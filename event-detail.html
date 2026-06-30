@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Details — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div style="margin-bottom:18px;">
+        <a href="events.html" class="btn btn-sm btn-ghost">← Back to Events</a>
+      </div>
+      <div class="grid-2" style="margin-bottom:18px;">
+        <div class="card pad">
+          <div id="detailFlyerWrap" style="display:none;border-radius:12px;overflow:hidden;max-height:220px;margin-bottom:18px;"><img id="detailFlyer" style="width:100%;object-fit:cover;max-height:220px;" alt="Event flyer"></div>
+          <h2 id="detailTitle" style="font-size:22px;font-weight:800;letter-spacing:-.03em;">Loading…</h2>
+          <p id="detailDesc" style="color:var(--muted);font-size:13.5px;margin-top:8px;line-height:1.7;"></p>
+          <div id="detailMeta" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;"></div>
+          <div id="detailActions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Event Stats</h2></div></div>
+          <div id="detailStats" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0;"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><div><h2>Did Not Come</h2><p id="absentNote">Absent or not marked</p></div></div>
+          <div id="detailAbsent" class="list"><div class="empty">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Attendance Records</h2></div></div>
+          <div id="detailAttendance" class="list"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import { mountShell, requireAuth, onData, store, notify, clean, safeImg, validUrl, roleKey, isSundayEvent, $ } from './assets/js/core.js';
+
+mountShell("events","Event Details","Details");
+
+const eventId = new URLSearchParams(location.search).get("id");
+
+requireAuth(() => { onData(render); });
+
+function render({ events, attendance, youthMembers }) {
+  const e = events.find(x => x.id === eventId) || events[0];
+  if (!e) { if ($("detailTitle")) $("detailTitle").textContent = "Event not found."; return; }
+
+  const img = safeImg(e.flyerData) || safeImg(e.flyerURL);
+  if (img && $("detailFlyerWrap")) { $("detailFlyerWrap").style.display = "block"; $("detailFlyer").src = img; }
+
+  if ($("detailTitle")) $("detailTitle").textContent = e.title || "Untitled";
+  if ($("detailDesc")) $("detailDesc").textContent = e.description || "No description added.";
+
+  if ($("detailMeta")) $("detailMeta").innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span class="pill">${clean(e.eventType||"Event")}</span>
+    </div>
+    <div><span style="color:var(--muted);font-size:12px;">Date & Time</span><p style="font-size:13.5px;font-weight:600;">${clean(e.date||"TBC")} ${clean(e.time||"")}</p></div>
+    <div><span style="color:var(--muted);font-size:12px;">Venue</span><p style="font-size:13.5px;font-weight:600;">${clean(e.location||"TBC")}</p></div>
+    <div><span style="color:var(--muted);font-size:12px;">Owner / Expected</span><p style="font-size:13.5px;font-weight:600;">${clean(e.owner||"Not assigned")} · Expected: ${clean(e.expectedCount||"Not set")}</p></div>`;
+
+  const actions = [];
+  if (validUrl(e.registrationLink)) actions.push(`<a class="btn btn-sm btn-primary" href="${clean(e.registrationLink)}" target="_blank" rel="noopener">Register Now</a>`);
+  if (validUrl(e.sheetLink)) actions.push(`<a class="btn btn-sm btn-ghost" href="${clean(e.sheetLink)}" target="_blank" rel="noopener">Registration Sheet</a>`);
+  if (!isSundayEvent(e)) actions.push(`<a class="btn btn-sm btn-ghost" href="https://github.com" target="_blank" rel="noopener">Game Plan (External)</a>`);
+  actions.push(`<a class="btn btn-sm btn-ghost" href="attendance.html">Mark Attendance</a>`);
+  if ($("detailActions")) $("detailActions").innerHTML = actions.join("");
+
+  // Stats
+  const records = attendance.filter(a => (a.eventId && a.eventId===e.id) || (!a.eventId && a.eventName===e.title && a.date===e.date));
+  const map = new Map(); records.forEach(a => { if (!map.has(a.memberId)) map.set(a.memberId, a.status); });
+  let came=0, absent=0, notMarked=0;
+  youthMembers.forEach(m => { const s=map.get(m.id); if(["Present","Late","Newcomer"].includes(s)) came++; else if(s==="Absent") absent++; else notMarked++; });
+
+  if ($("detailStats")) $("detailStats").innerHTML = [
+    ["Total People", youthMembers.length], ["Came", came],
+    ["Did Not Come", absent+notMarked], ["Not Marked", notMarked]
+  ].map(([label,val]) => `
+    <div style="padding:18px 20px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);">
+      <p style="font-size:11.5px;color:var(--muted);">${label}</p>
+      <h3 style="font-size:26px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${val}</h3>
+    </div>`).join("");
+
+  if ($("absentNote")) $("absentNote").textContent = `${absent+notMarked} people`;
+  const didnt = youthMembers.filter(m => { const s=map.get(m.id); return s==="Absent"||!s; });
+  if ($("detailAbsent")) $("detailAbsent").innerHTML = didnt.length
+    ? didnt.map(m => { const s=map.get(m.id)||"Not Marked"; return `<div class="list-item"><div class="person"><div class="avatar">${m.name.slice(0,2).toUpperCase()}</div><div><h4>${clean(m.name)}</h4><p>${clean(m.contactNumber||"No phone")} · ${clean(m.team||m.ministry||"No team")}</p></div></div><span class="pill status-${roleKey(s)}">${clean(s)}</span></div>`; }).join("")
+    : `<div class="empty">Everyone came!</div>`;
+
+  if ($("detailAttendance")) $("detailAttendance").innerHTML = records.slice(0,60).map(a => `
+    <div class="list-item"><div><h4>${clean(a.memberName)}</h4><p>${clean(a.date)} · <span class="pill status-${roleKey(a.status)}">${clean(a.status)}</span></p></div></div>`).join("")
+    || `<div class="empty">No attendance marked yet.</div>`;
+}
+</script>
+</body>
+</html>

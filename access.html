@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Access — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-header"><h2>Access Control</h2><p>Manage user roles, teams and account status</p></div>
+      <div id="accessWarning" class="hidden">
+        <div style="padding:16px 22px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:var(--radius);margin-bottom:18px;color:var(--danger);font-size:13.5px;font-weight:600;">Only Admins can change roles. You have read-only view.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2>All Users</h2><p>View and manage access levels</p></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="usersTable"><tr><td colspan="6"><div class="empty">Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import { mountShell, requireAuth, onData, store, canAdmin, notify, clean, avatarHTML, ROLES, $ } from './assets/js/core.js';
+import { db, updateDoc, doc, serverTimestamp } from './assets/js/firebase.js';
+
+mountShell("access","Access Control");
+requireAuth(() => { onData(render); });
+
+function render({ userProfiles }) {
+  if ($("accessWarning")) $("accessWarning").classList.toggle("hidden", canAdmin());
+  if ($("usersTable")) $("usersTable").innerHTML = userProfiles.map(u => `
+    <tr>
+      <td><div class="person">
+        <div class="avatar">${avatarHTML(u, u.name||u.email)}</div>
+        <div><b>${clean(u.name||"User")}</b></div>
+      </div></td>
+      <td>${clean(u.email||"—")}</td>
+      <td><select id="role-${u.uid||u.id}" ${canAdmin()?"":"disabled"} style="min-width:160px;">
+        ${ROLES.map(r => `<option${u.role===r?" selected":""}>${r}</option>`).join("")}
+      </select></td>
+      <td><input id="team-${u.uid||u.id}" value="${clean(u.team||"")}" placeholder="Team" ${canAdmin()?"":"disabled"} style="min-width:120px;"></td>
+      <td><select id="ustatus-${u.uid||u.id}" ${canAdmin()?"":"disabled"}>
+        <option${u.status==="Active"?" selected":""}>Active</option>
+        <option${u.status==="Disabled"?" selected":""}>Disabled</option>
+      </select></td>
+      <td><button class="btn btn-xs btn-primary" onclick="saveUser('${u.uid||u.id}')" ${canAdmin()?"":"disabled"}>Save</button></td>
+    </tr>`).join("") || `<tr><td colspan="6"><div class="empty">No users found.</div></td></tr>`;
+}
+
+window.saveUser = async function(uid) {
+  if (!canAdmin()) return notify("Only Admin can change roles.");
+  await updateDoc(doc(db,"userProfiles",uid), {
+    role: $(`role-${uid}`)?.value || "Member",
+    team: $(`team-${uid}`)?.value?.trim() || "",
+    status: $(`ustatus-${uid}`)?.value || "Active",
+    updatedAt: serverTimestamp()
+  });
+  notify("Access updated");
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Follow-ups — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div><h2>Follow-ups</h2><p>Newcomers, missing people and care responsibilities</p></div>
+          <button class="btn btn-sm btn-ghost" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:18px;">
+        <div class="card">
+          <div class="card-head"><div><h2>Pending</h2><p id="pendingCount">Loading…</p></div></div>
+          <div id="pendingList" class="list"><div class="empty">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Completed</h2><p id="completedCount">Loading…</p></div></div>
+          <div id="completedList" class="list"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import { mountShell, requireAuth, onData, store, canAdmin, notify, clean, roleKey, $ } from './assets/js/core.js';
+import { db, updateDoc, deleteDoc, doc, serverTimestamp } from './assets/js/firebase.js';
+
+mountShell("followups","Follow-ups");
+requireAuth(() => { onData(render); });
+
+function render({ followUps }) {
+  const pending = followUps.filter(f => f.status !== "Completed");
+  const completed = followUps.filter(f => f.status === "Completed");
+  if ($("pendingCount")) $("pendingCount").textContent = `${pending.length} pending`;
+  if ($("completedCount")) $("completedCount").textContent = `${completed.length} completed`;
+  renderList("pendingList", pending);
+  renderList("completedList", completed);
+}
+
+function renderList(id, items) {
+  const el = $(id);
+  if (!el) return;
+  el.innerHTML = items.length ? items.map(f => `
+    <div class="list-item">
+      <div>
+        <h4>${clean(f.memberName)}</h4>
+        <p>${clean(f.reason)} · Assigned: ${clean(f.assignedTo||"Unassigned")}</p>
+        <p>${clean(f.contactNumber||"")} ${f.notes ? `· ${clean(f.notes)}` : ""}</p>
+      </div>
+      <div class="list-item-actions">
+        <span class="pill status-${roleKey(f.status)}">${clean(f.status)}</span>
+        ${f.contactNumber ? `<a class="btn btn-xs btn-ghost" href="tel:${String(f.contactNumber).replace(/[^0-9+]/g,"")}">Call</a>` : ""}
+        ${f.status !== "Completed" ? `<button class="btn btn-xs btn-green" onclick="complete('${f.id}','${f.memberId||""}')">Complete</button>` : ""}
+        <button class="btn btn-xs btn-danger" onclick="del('${f.id}')">Delete</button>
+      </div>
+    </div>`).join("") : `<div class="empty">None here.</div>`;
+}
+
+window.complete = async function(id, memberId) {
+  await updateDoc(doc(db,"followUps",id), { status:"Completed", completedAt:serverTimestamp() });
+  if (memberId) await updateDoc(doc(db,"youthMembers",memberId), { followUpStatus:"Completed" });
+  notify("Follow-up completed");
+};
+
+window.del = async function(id) {
+  if (!canAdmin()) return notify("Only Admin can delete follow-ups.");
+  if (confirm("Delete this follow-up?")) { await deleteDoc(doc(db,"followUps",id)); notify("Deleted"); }
+};
+
+window.exportCSV = function() {
+  const rows = store.followUps;
+  if (!rows.length) return notify("No data to export");
+  const keys = ["memberName","contactNumber","reason","assignedTo","status","dueDate","notes"];
+  const csv = [keys.join(","), ...rows.map(r => keys.map(k => `"${String(r[k]??"").replace(/"/g,'""')}"`).join(","))].join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = "follow-ups.csv"; a.click();
+};
+</script>
+</body>
+</html>

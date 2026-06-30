@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body class="login-page">
+  <div id="toast"></div>
+  <div class="login-card">
+    <div class="login-brand">
+      <img src="assets/img/logo-mark.svg" alt="Youth Central">
+      <div>
+        <h1>Youth Central</h1>
+        <p>Leadership Hub</p>
+      </div>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" id="loginTab" onclick="switchAuth('login')">Login</button>
+      <button class="login-tab" id="signupTab" onclick="switchAuth('signup')">Sign Up</button>
+    </div>
+    <div class="login-form">
+      <div class="signup-only hidden">
+        <div class="field">
+          <label>Full Name</label>
+          <input id="loginName" type="text" placeholder="Your name">
+        </div>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <div class="signup-only hidden">
+        <div class="field">
+          <label>Admin Code <span style="color:var(--muted);font-weight:400">(optional — for Admin access)</span></label>
+          <input id="adminCode" type="text" placeholder="YC-ADMIN-XXXX">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="authMainBtn" onclick="login()" style="width:100%;margin-top:4px;">Login</button>
+      <div class="login-divider">Youth Central Leadership Hub · TGC Dehiwala</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, db, doc, setDoc, getDocs, collection, query, where, serverTimestamp } from './assets/js/firebase.js';
+    import { notify, ADMIN_CODE, $ } from './assets/js/core.js';
+
+    onAuthStateChanged(auth, user => {
+      if (user) window.location.href = "home.html";
+    });
+
+    let authMode = "login";
+
+    window.switchAuth = function(mode) {
+      authMode = mode;
+      $("loginTab").classList.toggle("active", mode === "login");
+      $("signupTab").classList.toggle("active", mode === "signup");
+      document.querySelectorAll(".signup-only").forEach(el => el.classList.toggle("hidden", mode !== "signup"));
+      $("authMainBtn").textContent = mode === "login" ? "Login" : "Create Account";
+      $("authMainBtn").setAttribute("onclick", mode === "login" ? "login()" : "signup()");
+    };
+
+    window.login = async function() {
+      const email = $("loginEmail").value.trim();
+      const password = $("loginPassword").value.trim();
+      if (!email || !password) return notify("Email and password required.");
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch(e) { notify(e.message || "Login failed"); }
+    };
+
+    window.signup = async function() {
+      const name = $("loginName").value.trim() || "Youth Member";
+      const email = $("loginEmail").value.trim();
+      const password = $("loginPassword").value.trim();
+      const code = $("adminCode").value.trim();
+      if (!email || !password) return notify("Email and password are required.");
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        let role = "Member";
+        if (code === ADMIN_CODE) {
+          const snap = await getDocs(query(collection(db,"userProfiles"), where("role","==","Admin")));
+          role = snap.size < 3 ? "Admin" : "Member";
+          if (role === "Member") notify("Admin limit reached — created as Member.");
+        }
+        await setDoc(doc(db,"userProfiles",cred.user.uid), {
+          uid: cred.user.uid, name, email, role, team: "", status: "Active",
+          photoData: "", photoURL: "", createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+        notify("Account created");
+      } catch(e) { notify(e.message || "Could not create account"); }
+    };
+
+    // Allow Enter key submit
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter") authMode === "login" ? window.login() : window.signup();
+    });
+  </script>
+</body>
+</html>

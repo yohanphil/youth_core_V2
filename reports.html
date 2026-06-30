@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-header"><h2>Youth Analytics</h2><p>Automated insights for attendance, events, teams, newcomers and care</p></div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:22px;">
+        <div class="kpi"><div class="kpi-label">Total People</div><div class="kpi-value" id="rTotal">—</div></div>
+        <div class="kpi"><div class="kpi-label">Active This Month</div><div class="kpi-value" id="rMonth">—</div></div>
+        <div class="kpi"><div class="kpi-label">Newcomers</div><div class="kpi-value" id="rNew">—</div></div>
+        <div class="kpi"><div class="kpi-label">Care Needed</div><div class="kpi-value" id="rCare">—</div></div>
+        <div class="kpi"><div class="kpi-label">Follow-ups Pending</div><div class="kpi-value" id="rFollowPending">—</div></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid-2" style="margin-bottom:18px;">
+        <div class="card">
+          <div class="card-head"><div><h2>Attendance Trend</h2><p>Last 8 weeks</p></div></div>
+          <div class="card-body">
+            <div class="chart-bars" id="attendanceTrendChart"><div class="empty">Loading…</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Team Performance</h2><p>People count by team</p></div></div>
+          <div class="card-body"><div class="chart-list" id="teamAnalyticsChart"></div></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:18px;">
+        <div class="card">
+          <div class="card-head"><div><h2>Event Attendance</h2><p>Top recent events by turnout</p></div></div>
+          <div class="card-body"><div class="chart-list" id="eventAnalyticsChart"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Follow-up Health</h2><p>Pending vs completed care work</p></div></div>
+          <div class="card-body"><div class="chart-list" id="followupAnalyticsChart"></div></div>
+        </div>
+      </div>
+
+      <!-- Lists -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><div><h2>Care List</h2><p>People missing 2+ weeks</p></div></div>
+          <div id="careList" class="list"><div class="empty">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><h2>Newcomers</h2><p>First-time visitors</p></div></div>
+          <div id="newcomerReport" class="list"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module">
+import { mountShell, requireAuth, onData, store, notify, clean, isMissing, isSpecialEvent, $ } from './assets/js/core.js';
+import { db, addDoc, collection, serverTimestamp } from './assets/js/firebase.js';
+
+mountShell("reports","Analytics");
+requireAuth(() => { onData(render); });
+
+function eventStats(e) {
+  const { youthMembers, attendance } = store;
+  const records = attendance.filter(a => (a.eventId&&a.eventId===e.id)||(!a.eventId&&a.eventName===e.title&&a.date===e.date));
+  const map = new Map(); records.forEach(a => { if (!map.has(a.memberId)) map.set(a.memberId, a.status); });
+  let came=0;
+  youthMembers.forEach(m => { if (["Present","Late","Newcomer"].includes(map.get(m.id))) came++; });
+  return { came, total: youthMembers.length };
+}
+
+function render({ youthMembers, attendance, tasks, followUps, events }) {
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const presentRecords = attendance.filter(a => ["Present","Late","Newcomer"].includes(a.status));
+  const uniqueMonth = new Set(presentRecords.filter(a => String(a.date||"").startsWith(thisMonth)).map(a => a.memberId)).size;
+  const newcomers = youthMembers.filter(m => m.memberType === "Newcomer");
+  const missing = youthMembers.filter(isMissing);
+  const pendingFU = followUps.filter(f => f.status !== "Completed").length;
+  const completedFU = followUps.filter(f => f.status === "Completed").length;
+
+  if ($("rTotal")) $("rTotal").textContent = youthMembers.length;
+  if ($("rMonth")) $("rMonth").textContent = uniqueMonth;
+  if ($("rNew")) $("rNew").textContent = newcomers.length;
+  if ($("rCare")) $("rCare").textContent = missing.length;
+  if ($("rFollowPending")) $("rFollowPending").textContent = pendingFU;
+
+  // Attendance trend
+  const now = new Date();
+  const weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const start = new Date(now); start.setDate(now.getDate() - i*7); start.setHours(0,0,0,0);
+    const end = new Date(start); end.setDate(start.getDate()+7);
+    const count = presentRecords.filter(a => { const d=new Date(a.date); return d>=start&&d<end; }).length;
+    weeks.push({ label:`W${8-i}`, count });
+  }
+  const maxW = Math.max(1, ...weeks.map(w => w.count));
+  if ($("attendanceTrendChart")) $("attendanceTrendChart").innerHTML = weeks.map(w =>
+    `<div class="chart-bar-wrap"><div class="chart-bar" style="--h:${Math.max(4,Math.round(w.count/maxW*100))}%"></div><span>${w.label}<br>${w.count}</span></div>`
+  ).join("");
+
+  // Team performance
+  const tc = {};
+  youthMembers.forEach(m => { const k=m.team||m.ministry||"No Team"; tc[k]=(tc[k]||0)+1; });
+  const te = Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxT = Math.max(1,...te.map(x=>x[1]));
+  if ($("teamAnalyticsChart")) $("teamAnalyticsChart").innerHTML = te.map(([name,count]) =>
+    `<div class="chart-list-row"><div><b>${clean(name)}</b><div class="mini-progress"><i style="--w:${Math.round(count/maxT*100)}%"></i></div></div><strong>${count}</strong></div>`
+  ).join("") || `<div class="empty">No team data yet.</div>`;
+
+  // Event attendance
+  const er = events.filter(isSpecialEvent).map(e => ({ e, s:eventStats(e) })).sort((a,b)=>String(b.e.date||"").localeCompare(String(a.e.date||""))).slice(0,6);
+  const maxE = Math.max(1,...er.map(x=>x.s.came));
+  if ($("eventAnalyticsChart")) $("eventAnalyticsChart").innerHTML = er.map(({e,s}) =>
+    `<div class="chart-list-row"><div><b>${clean(e.title)}</b><p>${clean(e.date||"")} · ${s.came} came / ${s.total}</p><div class="mini-progress"><i style="--w:${Math.round(s.came/maxE*100)}%"></i></div></div><strong>${s.came}</strong></div>`
+  ).join("") || `<div class="empty">No event data yet.</div>`;
+
+  // Follow-up health
+  const ftotal = Math.max(1, pendingFU+completedFU);
+  if ($("followupAnalyticsChart")) $("followupAnalyticsChart").innerHTML = `
+    <div class="chart-list-row"><div><b>Pending Follow-ups</b><div class="mini-progress"><i style="--w:${Math.round(pendingFU/ftotal*100)}%"></i></div></div><strong>${pendingFU}</strong></div>
+    <div class="chart-list-row"><div><b>Completed Follow-ups</b><div class="mini-progress"><i style="--w:${Math.round(completedFU/ftotal*100)}%"></i></div></div><strong>${completedFU}</strong></div>
+    <div class="chart-list-row"><div><b>Open Tasks</b><div class="mini-progress"><i style="--w:${Math.min(100,tasks.filter(t=>t.status!=="completed").length*10)}%"></i></div></div><strong>${tasks.filter(t=>t.status!=="completed").length}</strong></div>`;
+
+  // Care list
+  if ($("careList")) $("careList").innerHTML = missing.map(m => `
+    <div class="list-item">
+      <div class="person">
+        <div class="avatar">${m.name.slice(0,2).toUpperCase()}</div>
+        <div><h4>${clean(m.name)}</h4><p>${clean(m.contactNumber||"No phone")} · Last: ${clean(m.lastAttendedDate||"Never")} · ${clean(m.cellLeader||"No leader")}</p></div>
+      </div>
+      <div class="list-item-actions">
+        <button class="btn btn-xs btn-purple" onclick="createFU('${m.id}')">Follow Up</button>
+        ${m.contactNumber ? `<a class="btn btn-xs btn-ghost" href="tel:${String(m.contactNumber).replace(/[^0-9+]/g,"")}">Call</a>` : ""}
+      </div>
+    </div>`).join("") || `<div class="empty">No one is missing. Great work!</div>`;
+
+  // Newcomers
+  if ($("newcomerReport")) $("newcomerReport").innerHTML = newcomers.map(m => `
+    <div class="list-item">
+      <div><h4>${clean(m.name)}</h4><p>${clean(m.contactNumber||"No phone")} · First visit: ${clean(m.firstVisitDate||"Unknown")}</p></div>
+      <span class="pill status-Newcomer">Newcomer</span>
+    </div>`).join("") || `<div class="empty">No newcomers yet.</div>`;
+}
+
+window.createFU = async function(id) {
+  const m = store.youthMembers.find(x => x.id===id); if (!m) return;
+  await addDoc(collection(db,"followUps"), { memberId:m.id, memberName:m.name, contactNumber:m.contactNumber||"", reason:"Missing 2+ weeks", assignedTo:m.cellLeader||"Unassigned", status:"Pending", dueDate:"", notes:"", createdAt:serverTimestamp() });
+  notify("Follow-up created");
+};
+</script>
+</body>
+</html>

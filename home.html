@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Home — Youth Central</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+  <div id="toast"></div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div class="page-header">
+          <div class="page-header-row">
+            <div>
+              <h2>Dashboard</h2>
+              <p id="todayLine">Loading…</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <a href="newcomer.html" class="btn btn-sm">+ Add Newcomer</a>
+              <a href="attendance.html" class="btn btn-primary btn-sm">Mark Attendance</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="kpi"><div class="kpi-label">Total People</div><div class="kpi-value" id="totalYouth">—</div></div>
+          <div class="kpi"><div class="kpi-label">Newcomers</div><div class="kpi-value" id="newcomersCount">—</div></div>
+          <div class="kpi"><div class="kpi-label">Active This Month</div><div class="kpi-value" id="attendedMonth">—</div></div>
+          <div class="kpi"><div class="kpi-label">Care Needed</div><div class="kpi-value" id="missingCount">—</div></div>
+          <div class="kpi"><div class="kpi-label">Open Tasks</div><div class="kpi-value" id="openTaskCount">—</div></div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="grid-2" style="margin-bottom:18px;">
+          <div class="card">
+            <div class="card-head"><div><h2>Attendance Overview</h2><p>This month at a glance</p></div></div>
+            <div class="card-body" id="attendanceOverview"><div class="empty">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><h2>Team Breakdown</h2><p>People per ministry / team</p></div></div>
+            <div class="card-body" id="teamBreakdown"><div class="empty">Loading…</div></div>
+          </div>
+        </div>
+
+        <!-- Quick actions + Notifications -->
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><div><h2>Quick Actions</h2></div></div>
+            <div class="card-body">
+              <div class="grid-2" style="gap:12px;">
+                <a href="events.html" class="card pad" style="cursor:pointer;text-decoration:none;transition:background .2s;">
+                  <div style="font-size:24px;margin-bottom:8px;">📅</div>
+                  <div style="font-weight:700;font-size:13.5px;">Events</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:3px;">Manage & track events</div>
+                </a>
+                <a href="tasks.html" class="card pad" style="cursor:pointer;text-decoration:none;transition:background .2s;">
+                  <div style="font-size:24px;margin-bottom:8px;">✅</div>
+                  <div style="font-weight:700;font-size:13.5px;">Tasks</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:3px;" id="dashTaskCount">Loading tasks…</div>
+                </a>
+                <a href="followups.html" class="card pad" style="cursor:pointer;text-decoration:none;transition:background .2s;">
+                  <div style="font-size:24px;margin-bottom:8px;">🔔</div>
+                  <div style="font-weight:700;font-size:13.5px;">Follow-ups</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:3px;" id="dashFollowCount">Loading…</div>
+                </a>
+                <a href="reports.html" class="card pad" style="cursor:pointer;text-decoration:none;transition:background .2s;">
+                  <div style="font-size:24px;margin-bottom:8px;">📊</div>
+                  <div style="font-weight:700;font-size:13.5px;">Analytics</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:3px;">Youth insights</div>
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><h2>Notifications</h2><p>Recent alerts</p></div></div>
+            <div id="notifList" class="list"><div class="empty">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { mountShell, requireAuth, onData, store, isMissing, notify } from './assets/js/core.js';
+    import { $ } from './assets/js/core.js';
+
+    mountShell("home", "Dashboard");
+    $("todayLine").textContent = new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+    requireAuth(() => {
+      onData(render);
+    });
+
+    function render({ youthMembers, attendance, tasks, notifications, followUps }) {
+      const thisMonth = new Date().toISOString().slice(0,7);
+      const presentMonth = attendance.filter(a => String(a.date||"").startsWith(thisMonth) && ["Present","Late","Newcomer"].includes(a.status));
+      const attendedUnique = new Set(presentMonth.map(a => a.memberId)).size;
+      const newcomers = youthMembers.filter(m => m.memberType === "Newcomer").length;
+      const missing = youthMembers.filter(isMissing).length;
+      const openTasks = tasks.filter(t => t.status !== "completed").length;
+      const pendingFollowups = followUps.filter(f => f.status !== "Completed").length;
+
+      if ($("totalYouth")) $("totalYouth").textContent = youthMembers.length;
+      if ($("newcomersCount")) $("newcomersCount").textContent = newcomers;
+      if ($("attendedMonth")) $("attendedMonth").textContent = attendedUnique;
+      if ($("missingCount")) $("missingCount").textContent = missing;
+      if ($("openTaskCount")) $("openTaskCount").textContent = openTasks;
+      if ($("dashTaskCount")) $("dashTaskCount").textContent = `${openTasks} open tasks`;
+      if ($("dashFollowCount")) $("dashFollowCount").textContent = `${pendingFollowups} pending`;
+
+      // Attendance overview
+      const total = Math.max(1, youthMembers.length);
+      const rows = [
+        ["Active This Month", attendedUnique, Math.round(attendedUnique/total*100)],
+        ["Newcomers", newcomers, Math.round(newcomers/total*100)],
+        ["Care Needed", missing, Math.round(missing/total*100)],
+        ["Open Tasks", openTasks, Math.min(100, openTasks * 10)]
+      ];
+      if ($("attendanceOverview")) $("attendanceOverview").innerHTML = `<div class="mini-bar-wrap">${rows.map(([label,val,pct]) => `
+        <div class="mini-bar-row">
+          <b>${label}</b>
+          <div class="mini-bar"><i style="--w:${Math.max(4,pct)}%"></i></div>
+          <strong>${val}</strong>
+        </div>`).join("")}</div>`;
+
+      // Team breakdown
+      const teamCounts = {};
+      youthMembers.forEach(m => { const k = m.team||m.ministry||"No Team"; teamCounts[k]=(teamCounts[k]||0)+1; });
+      const teamEntries = Object.entries(teamCounts).sort((a,b) => b[1]-a[1]).slice(0,8);
+      const maxTeam = Math.max(1, ...teamEntries.map(x => x[1]));
+      if ($("teamBreakdown")) $("teamBreakdown").innerHTML = teamEntries.length
+        ? `<div class="mini-bar-wrap">${teamEntries.map(([name,count]) => `
+          <div class="mini-bar-row">
+            <b>${name}</b>
+            <div class="mini-bar"><i style="--w:${Math.max(6,Math.round(count/maxTeam*100))}%"></i></div>
+            <strong>${count}</strong>
+          </div>`).join("")}</div>`
+        : `<div class="empty">Add people to see team analytics.</div>`;
+
+      // Notifications
+      if ($("notifList")) $("notifList").innerHTML = notifications.slice(0,8).map(n => `
+        <div class="list-item">
+          <div><h4>${n.title||"Notification"}</h4><p>${n.body||""} · ${n.team||"All"} · by ${n.createdBy||"Team"}</p></div>
+        </div>`).join("") || `<div class="empty">No notifications yet.</div>`;
+    }
+  </script>
+</body>
+</html>
