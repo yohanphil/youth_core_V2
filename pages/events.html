@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#05050a"><title>Events | Youth Central</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="../assets/css/youth-central.css"></head><body data-page="events" data-title="Events" data-root="../">
+  <div class="motion-orb one"></div><div class="motion-orb two"></div><div class="motion-orb three"></div>
+  
+  <section id="authScreen" class="auth-screen">
+    <div class="motion-orb one"></div><div class="motion-orb two"></div><div class="motion-orb three"></div>
+    <div class="auth-shell">
+      <div class="auth-hero panel-shine">
+        <div class="logo-stack"><span class="logo-mark"><img src="../youth-central-logo.svg" alt="YC" style="width:34px;height:34px"></span><span><h1>Youth Central</h1><p>For the team that gets it done</p></span></div>
+        <div class="auth-copy"><span class="eyebrow">Youth Central</span><h2>I am done following up. <span>Now you get it done.</span></h2><p>An amazing workplace for people who can't remember what they have to do and who can't reply to messages on time.</p></div>
+        <div class="auth-metrics"><div class="mini-stat"><b>01</b><span>Add people</span></div><div class="mini-stat"><b>02</b><span>Mark attendance</span></div><div class="mini-stat"><b>03</b><span>Follow up fast</span></div></div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-tabs"><button class="auth-tab active" data-action="switchAuth" data-value="login">Login</button><button class="auth-tab" data-action="switchAuth" data-value="signup">Create</button></div>
+        <h3 id="authTitle">Welcome back</h3><p id="authText">Login to your Youth Central dashboard.</p>
+        <div class="field-stack"><input id="loginName" class="signup-only hidden" placeholder="Your name"><input id="loginEmail" type="email" placeholder="Email"><input id="loginPassword" type="password" placeholder="Password"><input id="adminCode" class="signup-only hidden" type="password" placeholder="Admin setup code"><button id="authMainBtn" data-action="login">Login</button></div>
+        <p class="signup-only hidden" style="font-size:12px;margin-top:14px;color:var(--muted)">Admin setup code: <b>YC-ADMIN-2026</b>. Others start as Member.</p>
+      </div>
+    </div>
+  </section>
+  <section id="appScreen" class="app-shell hidden">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand-link" href="../index.html">
+          <span class="logo-mark small"><img src="../youth-central-logo.svg" alt="YC" style="width:26px;height:26px"></span>
+          <span class="logo-stack"><span><h2>Youth Central</h2><p>Leadership OS</p></span></span>
+        </a>
+        <div class="nav-groups">
+          <div><div class="nav-group-title">Command</div><a class="nav-btn" data-page-link="home" href="../index.html"><span class="nav-icon">⌂</span>Home</a><a class="nav-btn" data-page-link="profile" href="../pages/profile.html"><span class="nav-icon">◉</span>My Profile</a></div>
+          <div><div class="nav-group-title">People</div><a class="nav-btn" data-page-link="people" href="../pages/people.html"><span class="nav-icon">☷</span>People</a><a class="nav-btn" data-page-link="newcomers" href="../pages/newcomers.html"><span class="nav-icon">✦</span>Newcomers</a><a class="nav-btn" data-page-link="teams" href="../pages/teams.html"><span class="nav-icon">◇</span>Teams</a><a class="nav-btn" data-page-link="followups" href="../pages/followups.html"><span class="nav-icon">↗</span>Follow-ups</a></div>
+          <div><div class="nav-group-title">Events</div><a class="nav-btn" data-page-link="events" href="../pages/events.html"><span class="nav-icon">✹</span>Events</a><a class="nav-btn" data-page-link="sundays" href="../pages/sundays.html"><span class="nav-icon">☀</span>Sunday Services</a><a class="nav-btn" data-page-link="attendance" href="../pages/attendance.html"><span class="nav-icon">✓</span>Attendance</a><a class="nav-btn" data-page-link="fomo-gameplan" href="../pages/fomo-gameplan.html"><span class="nav-icon">⚡</span>FOMO Game Plan</a><a class="nav-btn" data-page-link="public-live" href="../fomo-live.html"><span class="nav-icon">●</span>Public Live</a></div>
+          <div><div class="nav-group-title">Work</div><a class="nav-btn" data-page-link="tasks" href="../pages/tasks.html"><span class="nav-icon">□</span>Tasks</a><a class="nav-btn" data-page-link="reports" href="../pages/reports.html"><span class="nav-icon">▣</span>Reports</a><a class="nav-btn" data-page-link="access" href="../pages/access.html"><span class="nav-icon">⚙</span>Access</a></div>
+        </div>
+        <div class="side-bottom">
+          <div class="user-pill">
+            <div class="avatar" data-user-avatar>YC</div>
+            <div><b data-user-name>Loading...</b><span data-user-role>Member</span></div>
+          </div>
+          <button class="btn ghost" style="width:100%" data-action="logout">Logout</button>
+        </div>
+      </aside>
+      <div class="drawer-backdrop" id="drawerBackdrop"></div><main class="main">
+        <header class="topbar">
+          <div style="display:flex;align-items:center;gap:12px"><button id="navToggle" class="nav-toggle mobile-only">☰</button><div class="crumb"><span>Youth Central</span><span>/</span><b id="pageCrumb">Events</b></div></div>
+          <div class="top-actions"><span class="tag blue" data-user-role>Member</span><a class="btn small ghost" href="profile.html">Profile</a></div>
+        </header><section class="page"><div class="page-inner">
+  <div class="page-hero compact"><div class="panel-head"><div><span class="eyebrow">Youth calendar</span><h1>Special Events</h1><p>Scheduled youth events with flyers, registration links, reports and game plan access.</p></div><button class="btn primary" data-action="openEvent">+ Add Event</button></div></div>
+  <div class="panel"><div class="filters two"><select id="eventTypeFilter"><option value="">All Events</option><option>Special Youth Event</option><option>Sunday Service</option><option>Other Event</option><option>FOMO Tournament</option></select><button class="btn ghost" data-action="exportCSV" data-value="events">Export Events</button></div><div id="eventsGrid" class="event-grid"></div></div>
+</div></section><p class="footer-note">Youth Central • Firebase live sync connected • GitHub Pages ready</p></main></section>
+  <div id="memberModal" class="modal hidden"><div class="modal-card large"><div class="modal-head"><div><h3 id="memberModalTitle">Add Person</h3><p class="muted">Same data structure, cleaner entry flow.</p></div><button class="icon-btn" data-action="closeModal" data-value="memberModal">✕</button></div><div class="form-grid"><input id="memberName" placeholder="Name"><input id="memberPhone" placeholder="Phone"><select id="memberGender"><option value="">Gender</option><option>Male</option><option>Female</option></select><input id="memberLocation" placeholder="Location"><select id="memberTeam" data-team-select></select><input id="memberLeader" placeholder="Cell Leader"><select id="memberType"><option>Regular</option><option>Newcomer</option></select><select id="memberStatus"><option>Active</option><option>Inactive</option><option>Needs Follow-up</option><option>Not Needed</option><option>Pending</option><option>Completed</option></select><textarea id="memberNotes" class="full" placeholder="Notes"></textarea></div><div class="hero-actions"><button class="btn primary" data-action="saveMember">Save Person</button><button class="btn ghost" data-action="closeModal" data-value="memberModal">Cancel</button></div></div></div>
+  <div id="eventModal" class="modal hidden"><div class="modal-card large"><div class="modal-head"><div><h3 id="eventModalTitle">Add Event</h3><p class="muted">Create special events, Sunday services and game day records.</p></div><button class="icon-btn" data-action="closeModal" data-value="eventModal">✕</button></div><div class="form-grid"><input id="eventTitle" placeholder="Event title"><select id="eventType"><option>Special Youth Event</option><option>Sunday Service</option><option>Other Event</option><option>FOMO Tournament</option></select><input id="eventDate" type="date"><input id="eventLocation" placeholder="Location"><input id="eventFlyer" placeholder="Flyer image URL"><input id="eventRegistration" placeholder="Registration link"><textarea id="eventDescription" class="full" placeholder="Event description"></textarea></div><div class="hero-actions"><button class="btn primary" data-action="saveEvent">Save Event</button><button class="btn ghost" data-action="closeModal" data-value="eventModal">Cancel</button></div></div></div>
+  <div id="toastWrap" class="toast-wrap"></div>
+<script type="module" src="../assets/js/youth-central.js"></script></body></html>
